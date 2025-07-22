@@ -201,31 +201,93 @@ class NaverCrawlerService:
                 
                 return posts
             
-            for post_element in post_elements:
+            for idx, post_element in enumerate(post_elements):  # 모든 게시글 처리
                 try:
                     # 공지사항 등 제외
                     is_notice = await post_element.get_attribute("class")
                     if is_notice and "notice" in is_notice:
                         continue
                     
-                    # 게시글 ID 추출
-                    post_id_elem = await post_element.query_selector(".td_article .board-number")
+                    # 디버깅: 게시글 요소의 구조 확인
+                    element_html = await post_element.inner_html()
+                    self._logger.debug(f"게시글 {idx+1} HTML 구조: {element_html[:200]}...")
+                    
+                    # 게시글 ID 추출 (실제 구조 기반)
+                    post_id = "unknown"  # 일단 기본값 설정
+                    
+                    # href에서 articleid 추출 시도
+                    link_elem = await post_element.query_selector("a[href*='articleid']")
+                    if link_elem:
+                        href = await link_elem.get_attribute("href")
+                        if href and "articleid=" in href:
+                            import re
+                            match = re.search(r'articleid=(\d+)', href)
+                            if match:
+                                post_id = match.group(1)
+                    
+                    # 게시글 ID 추출 선택자 (추가 시도)
+                    post_id_selectors = [
+                        ".board-number",              # 직접 선택자
+                        "[class*='number']",          # number 클래스 포함
+                        "td:first-child",             # 첫 번째 td
+                        ".num"                        # 일반적인 번호 클래스
+                    ]
+                    
+                    post_id_elem = None
+                    for selector in post_id_selectors:
+                        post_id_elem = await post_element.query_selector(selector)
+                        if post_id_elem:
+                            break
+                    
                     if not post_id_elem:
+                        self._logger.warning(f"게시글 {idx+1}에서 ID를 찾을 수 없습니다")
                         continue
                     post_id = await post_id_elem.inner_text()
                     
-                    # 제목 추출
-                    title_elem = await post_element.query_selector(".td_article .article")
+                    # 제목 추출 (실제 구조 기반)
+                    title_selectors = [
+                        "a[href*='ArticleRead']",    # 게시글 링크 (가장 가능성 높음)
+                        ".td_article .article",      # 기존 선택자
+                        ".article",                  # 직접 선택자
+                        ".board-list a",             # board-list 내부 링크
+                        ".title",                    # 일반적인 제목
+                        "td:nth-child(1) a"         # 첫 번째 td의 링크
+                    ]
+                    
+                    title_elem = None
+                    for selector in title_selectors:
+                        title_elem = await post_element.query_selector(selector)
+                        if title_elem:
+                            break
+                    
                     if not title_elem:
+                        self._logger.warning(f"게시글 {idx+1}에서 제목을 찾을 수 없습니다")
                         continue
                     title = await title_elem.inner_text()
                     title = title.strip()
+                    self._logger.info(f"게시글 {idx+1} - ID: {post_id}, 제목: {title[:50]}...")
                     
-                    # 작성자 추출
-                    author_elem = await post_element.query_selector(".td_name .p-nick a")
+                    # 작성자 추출 (여러 선택자 시도)
+                    author_selectors = [
+                        ".td_name .p-nick a",        # 기존 선택자
+                        ".p-nick a",                 # 직접 선택자
+                        ".writer",                   # 일반적인 작성자
+                        ".author",                   # 작성자
+                        "td:nth-child(2) .p-nick a", # 두 번째 td의 작성자
+                        "td:nth-child(3) a"         # 세 번째 td의 링크
+                    ]
+                    
+                    author_elem = None
+                    for selector in author_selectors:
+                        author_elem = await post_element.query_selector(selector)
+                        if author_elem:
+                            break
+                    
                     if not author_elem:
-                        continue
-                    author = await author_elem.inner_text()
+                        self._logger.warning(f"게시글 {idx+1}에서 작성자를 찾을 수 없습니다 - 기본값 사용")
+                        author = "unknown_author"  # 기본값 설정
+                    else:
+                        author = await author_elem.inner_text()
                     
                     # 작성일 추출
                     date_elem = await post_element.query_selector(".td_date")
@@ -235,13 +297,15 @@ class NaverCrawlerService:
                     else:
                         created_at = datetime.now()
                     
-                    # 게시글 URL 추출
-                    link_elem = await post_element.query_selector(".td_article .article")
+                    # 게시글 URL 추출 (이미 위에서 찾은 link_elem 재사용)
                     post_url = None
                     if link_elem:
                         href = await link_elem.get_attribute("href")
                         if href:
-                            post_url = f"{cafe_url}{href}"
+                            if href.startswith("http"):
+                                post_url = href
+                            else:
+                                post_url = f"{cafe_url}{href}"
                     
                     # 조회수 추출
                     view_elem = await post_element.query_selector(".td_view")
@@ -265,9 +329,12 @@ class NaverCrawlerService:
                     )
                     
                     posts.append(post)
+                    self._logger.info(f"게시글 수집 성공: {post.post_id} - {post.title[:30]}... (작성자: {post.author})")
                     
                 except Exception as e:
-                    self._logger.warning(f"게시글 파싱 중 오류: {str(e)}")
+                    self._logger.error(f"게시글 {idx+1} 파싱 중 오류: {str(e)}")
+                    import traceback
+                    self._logger.debug(f"상세 오류: {traceback.format_exc()}")
                     continue
             
             self._logger.info(f"페이지 {page_num}에서 {len(posts)}개 게시글 수집")

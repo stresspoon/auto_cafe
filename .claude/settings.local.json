@@ -21,7 +21,8 @@
       "Bash(timeout:*)",
       "Bash(mv:*)",
       "Bash(git reset:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(grep:*)"
     ],
     "deny": []
   }
