@@ -62,6 +62,11 @@ class Config:
         """암호화 키 반환."""
         return os.getenv("ENCRYPTION_KEY")
     
+    @property
+    def participants_file_path(self) -> str:
+        """참여자 리스트 파일 경로 반환."""
+        return self._get_env_with_default("PARTICIPANTS_FILE_PATH", "data/participants.json")
+    
     def _get_required_env(self, key: str) -> str:
         """필수 환경 변수 값을 반환하며, 없으면 예외 발생."""
         value = os.getenv(key)
