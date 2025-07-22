@@ -101,20 +101,13 @@ class QOK6AutomationSystem:
             # 4. 구글 시트 연동
             self.google_sheets.authenticate()
             
-            # 참여자 목록 가져오기 (구현 예정)
+            # 참여자 목록 가져오기
             participants = self.google_sheets.get_participants_list()
             results['participants'] = participants
             
-            # 5. 출석 현황 업데이트 (구현 예정)
-            # attendance_report = self.parser.generate_attendance_report(
-            #     weekly_submissions, participants
-            # )
-            # 
-            # for participant, week_statuses in attendance_report.items():
-            #     for week, status in week_statuses.items():
-            #         self.google_sheets.update_attendance_status(
-            #             participant, week, status
-            #         )
+            # 5. 출석 현황 업데이트
+            update_success = self.google_sheets.update_attendance_from_submissions(weekly_submissions)
+            results['updated_cells'] = len(weekly_submissions) * len(participants) if update_success else 0
             
             results['success'] = True
             self.logger.info("=== QOK6 자동화 사이클 완료 ===")
