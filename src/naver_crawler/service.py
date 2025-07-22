@@ -201,57 +201,63 @@ class NaverCrawlerService:
                 
                 return posts
             
-            for idx, post_element in enumerate(post_elements):  # 모든 게시글 처리
+            for idx, post_element in enumerate(post_elements[:3]):  # 처음 3개만 디버깅
                 try:
-                    # 공지사항 등 제외
+                    # 공지사항 등 제외 (더 관대하게 처리)
                     is_notice = await post_element.get_attribute("class")
-                    if is_notice and "notice" in is_notice:
-                        continue
+                    self._logger.info(f"게시글 {idx+1}: class = {is_notice}")
+                    
+                    # 공지사항 체크를 일단 비활성화하고 모든 게시글 처리
+                    # if is_notice and "notice" in is_notice:
+                    #     self._logger.info(f"게시글 {idx+1}: 공지사항으로 건너뜀")
+                    #     continue
                     
                     # 디버깅: 게시글 요소의 구조 확인
                     element_html = await post_element.inner_html()
-                    self._logger.debug(f"게시글 {idx+1} HTML 구조: {element_html[:200]}...")
+                    self._logger.info(f"게시글 {idx+1} HTML 구조: {element_html[:300]}...")
                     
-                    # 게시글 ID 추출 (실제 구조 기반)
-                    post_id = "unknown"  # 일단 기본값 설정
+                    # 기본 텍스트도 확인
+                    element_text = await post_element.inner_text()
+                    self._logger.info(f"게시글 {idx+1} 텍스트: {element_text[:100]}...")
                     
-                    # href에서 articleid 추출 시도
-                    link_elem = await post_element.query_selector("a[href*='articleid']")
-                    if link_elem:
-                        href = await link_elem.get_attribute("href")
-                        if href and "articleid=" in href:
-                            import re
-                            match = re.search(r'articleid=(\d+)', href)
-                            if match:
-                                post_id = match.group(1)
-                    
-                    # 게시글 ID 추출 선택자 (추가 시도)
+                    # 게시글 ID 추출 (스크린샷 기반 정확한 구조)
+                    # 테이블의 첫 번째 열에서 게시글 번호 추출
                     post_id_selectors = [
-                        ".board-number",              # 직접 선택자
-                        "[class*='number']",          # number 클래스 포함
-                        "td:first-child",             # 첫 번째 td
-                        ".num"                        # 일반적인 번호 클래스
+                        "td:first-child",             # 첫 번째 td (가장 가능성 높음)
+                        ".td_num",                    # 번호 전용 클래스가 있을 경우
+                        ".board-number"               # 기존 선택자
                     ]
                     
-                    post_id_elem = None
+                    post_id = "unknown"
                     for selector in post_id_selectors:
                         post_id_elem = await post_element.query_selector(selector)
                         if post_id_elem:
-                            break
+                            post_id_text = await post_id_elem.inner_text()
+                            post_id = post_id_text.strip()
+                            if post_id and post_id.isdigit():
+                                break
                     
-                    if not post_id_elem:
-                        self._logger.warning(f"게시글 {idx+1}에서 ID를 찾을 수 없습니다")
-                        continue
-                    post_id = await post_id_elem.inner_text()
+                    # href에서 articleid도 추출 시도 (백업용)
+                    if post_id == "unknown":
+                        link_elem = await post_element.query_selector("a[href*='articleid']")
+                        if link_elem:
+                            href = await link_elem.get_attribute("href")
+                            if href and "articleid=" in href:
+                                import re
+                                match = re.search(r'articleid=(\d+)', href)
+                                if match:
+                                    post_id = match.group(1)
                     
-                    # 제목 추출 (실제 구조 기반)
+                    self._logger.info(f"게시글 {idx+1}: ID = {post_id}")
+                    
+                    # 제목 추출 (스크린샷 기반 - 두 번째 열에 제목이 있음)
                     title_selectors = [
-                        "a[href*='ArticleRead']",    # 게시글 링크 (가장 가능성 높음)
+                        "td:nth-child(2) a",         # 두 번째 td의 링크 (가장 가능성 높음)
+                        "td:nth-child(2)",           # 두 번째 td 자체
+                        "a[href*='ArticleRead']",    # 게시글 링크
                         ".td_article .article",      # 기존 선택자
                         ".article",                  # 직접 선택자
-                        ".board-list a",             # board-list 내부 링크
-                        ".title",                    # 일반적인 제목
-                        "td:nth-child(1) a"         # 첫 번째 td의 링크
+                        ".board-list a"              # board-list 내부 링크
                     ]
                     
                     title_elem = None
@@ -267,14 +273,14 @@ class NaverCrawlerService:
                     title = title.strip()
                     self._logger.info(f"게시글 {idx+1} - ID: {post_id}, 제목: {title[:50]}...")
                     
-                    # 작성자 추출 (여러 선택자 시도)
+                    # 작성자 추출 (스크린샷 기반 - 세 번째 열에 작성자가 있음)
                     author_selectors = [
+                        "td:nth-child(3) a",         # 세 번째 td의 링크 (가장 가능성 높음)
+                        "td:nth-child(3)",           # 세 번째 td 자체
                         ".td_name .p-nick a",        # 기존 선택자
                         ".p-nick a",                 # 직접 선택자
                         ".writer",                   # 일반적인 작성자
-                        ".author",                   # 작성자
-                        "td:nth-child(2) .p-nick a", # 두 번째 td의 작성자
-                        "td:nth-child(3) a"         # 세 번째 td의 링크
+                        ".author"                    # 작성자
                     ]
                     
                     author_elem = None
@@ -289,33 +295,49 @@ class NaverCrawlerService:
                     else:
                         author = await author_elem.inner_text()
                     
-                    # 작성일 추출
-                    date_elem = await post_element.query_selector(".td_date")
-                    if date_elem:
-                        date_str = await date_elem.inner_text()
-                        created_at = self._parse_date(date_str)
-                    else:
-                        created_at = datetime.now()
+                    # 작성일 추출 (스크린샷 기준 네 번째 열)
+                    date_selectors = [
+                        "td:nth-child(4)",           # 네 번째 td (날짜 열)
+                        ".td_date"                   # 기존 선택자
+                    ]
                     
-                    # 게시글 URL 추출 (이미 위에서 찾은 link_elem 재사용)
+                    created_at = datetime.now()  # 기본값
+                    for selector in date_selectors:
+                        date_elem = await post_element.query_selector(selector)
+                        if date_elem:
+                            date_str = await date_elem.inner_text()
+                            try:
+                                created_at = self._parse_date(date_str)
+                                break
+                            except:
+                                continue
+                    
+                    # 게시글 URL 추출 (title_elem에서 href 가져오기)
                     post_url = None
-                    if link_elem:
-                        href = await link_elem.get_attribute("href")
+                    if title_elem:
+                        href = await title_elem.get_attribute("href")
                         if href:
                             if href.startswith("http"):
                                 post_url = href
                             else:
                                 post_url = f"{cafe_url}{href}"
                     
-                    # 조회수 추출
-                    view_elem = await post_element.query_selector(".td_view")
+                    # 조회수 추출 (스크린샷 기준 다섯 번째 열)
+                    view_selectors = [
+                        "td:nth-child(5)",           # 다섯 번째 td (조회수 열)
+                        ".td_view"                   # 기존 선택자
+                    ]
+                    
                     view_count = None
-                    if view_elem:
-                        view_text = await view_elem.inner_text()
-                        try:
-                            view_count = int(view_text.strip())
-                        except ValueError:
-                            pass
+                    for selector in view_selectors:
+                        view_elem = await post_element.query_selector(selector)
+                        if view_elem:
+                            view_text = await view_elem.inner_text()
+                            try:
+                                view_count = int(view_text.strip())
+                                break
+                            except ValueError:
+                                continue
                     
                     # NaverPost 객체 생성 (content는 상세 페이지에서 가져와야 함)
                     post = NaverPost(
