@@ -148,26 +148,58 @@ class NaverCrawlerService:
         posts = []
         
         try:
-            # 카페 게시판 페이지 URL 생성
-            board_url = f"{cafe_url}/ArticleList.nhn?search.clubid={self._extract_cafe_id(cafe_url)}&search.menuid={board_id}&search.boardtype=L&search.page={page_num}"
+            # 카페 게시판 페이지 URL 생성 (새로운 형태)
+            board_url = f"{cafe_url}/{board_id}?page={page_num}"
             
             # 페이지로 이동
             await self._page.goto(board_url, wait_until="networkidle")
-            await self._page.wait_for_timeout(1000)  # 페이지 로드 대기
+            await self._page.wait_for_timeout(2000)  # 페이지 로드 대기
             
-            # iframe으로 전환 (네이버 카페는 iframe 구조)
+            # 현재 페이지에서 직접 요소 찾기 (iframe 사용하지 않음)
+            frame = self._page
+            
+            # iframe 구조가 있는지 먼저 확인
             iframe_element = await self._page.query_selector("#cafe_main")
             if iframe_element:
-                frame = await iframe_element.content_frame()
-                if not frame:
-                    self._logger.error("카페 메인 iframe을 찾을 수 없습니다")
-                    return posts
+                inner_frame = await iframe_element.content_frame()
+                if inner_frame:
+                    frame = inner_frame
+                    self._logger.info("iframe 구조를 사용합니다")
+                else:
+                    self._logger.info("iframe이 있지만 content_frame을 사용할 수 없습니다. 직접 접근합니다.")
             else:
-                self._logger.error("카페 메인 iframe 요소를 찾을 수 없습니다")
-                return posts
+                self._logger.info("iframe 구조가 없습니다. 직접 접근합니다.")
             
-            # 게시글 목록 수집
-            post_elements = await frame.query_selector_all(".article-board tbody tr")
+            # 게시글 목록 수집 (다양한 선택자 시도)
+            post_elements = []
+            
+            # 최신 네이버 카페 구조 시도
+            selectors = [
+                ".article-board tbody tr",  # 기존 구조
+                ".ArticleItem",  # 새로운 구조 1
+                ".post-item",    # 새로운 구조 2
+                "[data-article-id]",  # data attribute 기반
+                "article",       # semantic HTML
+                ".list-item"     # 일반적인 목록
+            ]
+            
+            for selector in selectors:
+                post_elements = await frame.query_selector_all(selector)
+                if post_elements:
+                    self._logger.info(f"게시글 요소를 찾았습니다 (선택자: {selector}, 개수: {len(post_elements)})")
+                    break
+            
+            if not post_elements:
+                self._logger.warning("게시글 요소를 찾을 수 없습니다. 페이지 구조를 확인합니다.")
+                
+                # 페이지의 모든 텍스트 내용 확인 (디버깅용)
+                page_content = await frame.inner_text("body")
+                if "westudyssat" in page_content.lower():
+                    self._logger.info("카페 페이지로 접근했지만 게시글 구조를 인식하지 못했습니다.")
+                else:
+                    self._logger.error("카페 페이지로 접근하지 못했을 수 있습니다.")
+                
+                return posts
             
             for post_element in post_elements:
                 try:

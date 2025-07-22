@@ -11,8 +11,8 @@ NAVER_ID=stresspoon
 NAVER_PASSWORD=LI7985600!)
 
 # 네이버 카페 정보  
-CAFE_URL=https://cafe.naver.com/f-e/cafes/26321967/menus/180
-BOARD_ID=26321967
+CAFE_URL=https://cafe.naver.com/westudyssat
+BOARD_ID=180
 CRAWL_PAGES=3
 
 # 구글 시트 정보
