@@ -22,7 +22,6 @@ wheels/
 MANIFEST
 
 # 가상환경
-.env
 .venv
 env/
 venv/
@@ -42,9 +41,9 @@ venv.bak/
 logs/
 
 # 설정 및 민감 정보
+.env
 config/settings.ini
 data/credentials.json
-data/*.json
 
 # 테스트
 .coverage
