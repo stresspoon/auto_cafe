@@ -237,27 +237,33 @@ class NaverCrawlerService:
                             if post_id and post_id.isdigit():
                                 break
                     
-                    # href에서 articleid도 추출 시도 (백업용)
+                    # href에서 게시글 ID 추출 (실제 구조 기반)
                     if post_id == "unknown":
-                        link_elem = await post_element.query_selector("a[href*='articleid']")
+                        link_elem = await post_element.query_selector("a.article")
                         if link_elem:
                             href = await link_elem.get_attribute("href")
-                            if href and "articleid=" in href:
+                            if href:
                                 import re
-                                match = re.search(r'articleid=(\d+)', href)
-                                if match:
-                                    post_id = match.group(1)
+                                # 실제 형태: articleid=1403 패턴에서 ID 추출
+                                if "articleid=" in href:
+                                    match = re.search(r'articleid=(\d+)', href)
+                                    if match:
+                                        post_id = match.group(1)
+                                # 백업으로 articles/2667 패턴도 체크
+                                elif "articles/" in href:
+                                    match = re.search(r'articles/(\d+)', href)
+                                    if match:
+                                        post_id = match.group(1)
                     
                     self._logger.info(f"게시글 {idx+1}: ID = {post_id}")
                     
-                    # 제목 추출 (스크린샷 기반 - 두 번째 열에 제목이 있음)
+                    # 제목 추출 (개발자 도구 기반 정확한 선택자)
                     title_selectors = [
-                        "td:nth-child(2) a",         # 두 번째 td의 링크 (가장 가능성 높음)
-                        "td:nth-child(2)",           # 두 번째 td 자체
-                        "a[href*='ArticleRead']",    # 게시글 링크
-                        ".td_article .article",      # 기존 선택자
-                        ".article",                  # 직접 선택자
-                        ".board-list a"              # board-list 내부 링크
+                        "a.article",                 # a태그에 article 클래스 (정확한 선택자!)
+                        ".article",                  # article 클래스 직접
+                        "a[href*='articles']",       # articles가 포함된 링크
+                        "td:nth-child(2) a",         # 두 번째 td의 링크
+                        "a[href*='ArticleRead']"     # 기존 선택자
                     ]
                     
                     title_elem = None
@@ -319,8 +325,10 @@ class NaverCrawlerService:
                         if href:
                             if href.startswith("http"):
                                 post_url = href
+                            elif href.startswith("/"):
+                                post_url = f"https://cafe.naver.com{href}"
                             else:
-                                post_url = f"{cafe_url}{href}"
+                                post_url = f"https://cafe.naver.com/{href}"
                     
                     # 조회수 추출 (스크린샷 기준 다섯 번째 열)
                     view_selectors = [

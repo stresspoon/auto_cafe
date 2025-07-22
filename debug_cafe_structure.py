@@ -47,13 +47,6 @@ async def analyze_cafe_structure():
         # 게시글 목록 찾기
         selectors = [
             ".article-board tbody tr",
-            ".ArticleItem", 
-            ".post-item",
-            "[data-article-id]",
-            "article",
-            ".list-item",
-            "tbody tr",
-            "tr"
         ]
         
         for selector in selectors:
@@ -65,11 +58,35 @@ async def analyze_cafe_structure():
                 if len(elements) > 0:
                     first_element = elements[0]
                     html_content = await first_element.inner_html()
-                    print(f"첫 번째 요소 HTML:\n{html_content[:500]}...")
+                    print(f"첫 번째 요소 HTML:\n{html_content}")
                     
-                    # 텍스트 내용도 확인
-                    text_content = await first_element.inner_text()
-                    print(f"첫 번째 요소 텍스트: {text_content[:200]}...")
+                    # a.article 선택자 테스트
+                    article_link = await first_element.query_selector("a.article")
+                    if article_link:
+                        title = await article_link.inner_text()
+                        href = await article_link.get_attribute("href")
+                        print(f"\n✅ a.article 선택자 성공!")
+                        print(f"제목: {title}")
+                        print(f"링크: {href}")
+                        
+                        # 게시글 ID 추출 테스트
+                        import re
+                        if href:
+                            match = re.search(r'articles/(\d+)', href)
+                            if match:
+                                post_id = match.group(1)
+                                print(f"게시글 ID: {post_id}")
+                    else:
+                        print("❌ a.article 선택자로 요소를 찾을 수 없음")
+                        
+                        # 대안 선택자들 테스트
+                        test_selectors = [".article", "a", "a[href*='articles']"]
+                        for test_sel in test_selectors:
+                            test_elem = await first_element.query_selector(test_sel)
+                            if test_elem:
+                                test_text = await test_elem.inner_text()
+                                test_href = await test_elem.get_attribute("href")
+                                print(f"  - {test_sel}: {test_text[:30]}... | href: {test_href}")
                     
                 break
         
