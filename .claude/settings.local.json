@@ -22,7 +22,8 @@
       "Bash(mv:*)",
       "Bash(git reset:*)",
       "Bash(curl:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(kill:*)"
     ],
     "deny": []
   }
