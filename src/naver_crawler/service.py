@@ -1,0 +1,421 @@
+"""네이버 카페 크롤링 서비스 모듈."""
+
+import json
+import os
+from pathlib import Path
+from typing import List, Optional, Dict, Any
+from playwright.async_api import async_playwright, Browser, Page
+
+from ..core.logger import get_logger, log_execution_time
+from ..core.exceptions import NaverCrawlerError, LoginFailedError, CrawlingError
+from .models import NaverPost
+
+
+class NaverCrawlerService:
+    """네이버 카페 자동 로그인 및 게시글 크롤링을 담당하는 서비스."""
+    
+    def __init__(self, naver_id: str, naver_password: str) -> None:
+        """네이버 로그인 정보로 크롤러 서비스 초기화."""
+        self._naver_id = naver_id
+        self._naver_password = naver_password
+        self._logger = get_logger(__name__)
+        self._browser: Optional[Browser] = None
+        self._page: Optional[Page] = None
+        self._cookies_path = Path("data/naver_cookies.json")
+    
+    @log_execution_time
+    async def initialize_browser(self) -> None:
+        """Playwright 브라우저를 초기화하고 설정."""
+        try:
+            self._playwright = await async_playwright().start()
+            self._browser = await self._playwright.chromium.launch(
+                headless=True,
+                args=['--no-sandbox', '--disable-dev-shm-usage']
+            )
+            self._page = await self._browser.new_page()
+            
+            # User-Agent 설정으로 봇 탐지 회피
+            await self._page.set_extra_http_headers({
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            })
+            
+            self._logger.info("브라우저 초기화 완료")
+            
+        except Exception as e:
+            raise NaverCrawlerError(f"브라우저 초기화 실패: {str(e)}")
+    
+    @log_execution_time
+    async def login_to_naver(self, max_retries: int = 3) -> bool:
+        """네이버에 자동 로그인 수행."""
+        if not self._page:
+            raise NaverCrawlerError("브라우저가 초기화되지 않았습니다")
+        
+        # 저장된 쿠키로 먼저 로그인 시도
+        if await self._try_login_with_cookies():
+            return True
+        
+        # 쿠키 로그인 실패 시 일반 로그인 진행
+        for attempt in range(max_retries):
+            try:
+                self._logger.info(f"네이버 로그인 시도 {attempt + 1}/{max_retries}")
+                
+                # 네이버 로그인 페이지로 이동
+                await self._page.goto("https://nid.naver.com/nidlogin.login", wait_until="networkidle")
+                
+                # 로그인 정보 입력
+                await self._page.fill("#id", self._naver_id)
+                await self._page.fill("#pw", self._naver_password)
+                
+                # 로그인 버튼 클릭
+                await self._page.click("#log\\.login")
+                
+                # 로그인 결과 대기 및 확인
+                await self._page.wait_for_load_state("networkidle", timeout=10000)
+                
+                # 로그인 성공 여부 확인
+                if await self._verify_login_success():
+                    await self._save_cookies()
+                    self._logger.info("네이버 로그인 성공")
+                    return True
+                else:
+                    self._logger.warning(f"로그인 시도 {attempt + 1} 실패")
+                    
+            except Exception as e:
+                self._logger.error(f"로그인 시도 {attempt + 1} 중 오류: {str(e)}")
+                if attempt == max_retries - 1:
+                    raise LoginFailedError(f"네이버 로그인 {max_retries}회 모두 실패: {str(e)}")
+        
+        return False
+    
+    @log_execution_time
+    async def crawl_cafe_posts(
+        self, 
+        cafe_url: str, 
+        board_id: str, 
+        pages: int = 3
+    ) -> List[NaverPost]:
+        """지정된 카페 게시판에서 게시글 목록을 크롤링."""
+        if not self._page:
+            raise NaverCrawlerError("브라우저가 초기화되지 않았습니다")
+        
+        posts = []
+        
+        try:
+            # 1단계: 게시글 목록 수집
+            for page_num in range(1, pages + 1):
+                page_posts = await self._crawl_single_page(cafe_url, board_id, page_num)
+                posts.extend(page_posts)
+                
+                self._logger.info(f"페이지 {page_num} 크롤링 완료: {len(page_posts)}개 게시글")
+            
+            # 2단계: 각 게시글의 상세 내용 가져오기
+            self._logger.info(f"총 {len(posts)}개 게시글의 상세 내용 크롤링 시작")
+            
+            for i, post in enumerate(posts):
+                if post.post_url:
+                    content = await self._get_post_content(post.post_url)
+                    if content:
+                        post.content = content
+                        self._logger.debug(f"게시글 {i+1}/{len(posts)} 내용 수집 완료")
+                    else:
+                        self._logger.warning(f"게시글 {post.post_id} 내용 수집 실패")
+                
+                # 너무 빠른 요청 방지
+                if i < len(posts) - 1:
+                    await self._page.wait_for_timeout(500)
+            
+            # 중복 제거 (post_id 기준)
+            unique_posts = self._remove_duplicate_posts(posts)
+            
+            # 챌린지 게시글만 필터링
+            challenge_posts = [post for post in unique_posts if post.is_challenge_post]
+            self._logger.info(f"전체 크롤링 완료: 총 {len(posts)}개 → 중복 제거 후 {len(unique_posts)}개 → 챌린지 게시글 {len(challenge_posts)}개")
+            
+            return unique_posts
+            
+        except Exception as e:
+            raise CrawlingError(f"게시글 크롤링 중 오류 발생: {str(e)}")
+    
+    async def _crawl_single_page(
+        self, 
+        cafe_url: str, 
+        board_id: str, 
+        page_num: int
+    ) -> List[NaverPost]:
+        """단일 페이지의 게시글을 크롤링."""
+        from datetime import datetime
+        
+        posts = []
+        
+        try:
+            # 카페 게시판 페이지 URL 생성
+            board_url = f"{cafe_url}/ArticleList.nhn?search.clubid={self._extract_cafe_id(cafe_url)}&search.menuid={board_id}&search.boardtype=L&search.page={page_num}"
+            
+            # 페이지로 이동
+            await self._page.goto(board_url, wait_until="networkidle")
+            await self._page.wait_for_timeout(1000)  # 페이지 로드 대기
+            
+            # iframe으로 전환 (네이버 카페는 iframe 구조)
+            iframe_element = await self._page.query_selector("#cafe_main")
+            if iframe_element:
+                frame = await iframe_element.content_frame()
+                if not frame:
+                    self._logger.error("카페 메인 iframe을 찾을 수 없습니다")
+                    return posts
+            else:
+                self._logger.error("카페 메인 iframe 요소를 찾을 수 없습니다")
+                return posts
+            
+            # 게시글 목록 수집
+            post_elements = await frame.query_selector_all(".article-board tbody tr")
+            
+            for post_element in post_elements:
+                try:
+                    # 공지사항 등 제외
+                    is_notice = await post_element.get_attribute("class")
+                    if is_notice and "notice" in is_notice:
+                        continue
+                    
+                    # 게시글 ID 추출
+                    post_id_elem = await post_element.query_selector(".td_article .board-number")
+                    if not post_id_elem:
+                        continue
+                    post_id = await post_id_elem.inner_text()
+                    
+                    # 제목 추출
+                    title_elem = await post_element.query_selector(".td_article .article")
+                    if not title_elem:
+                        continue
+                    title = await title_elem.inner_text()
+                    title = title.strip()
+                    
+                    # 작성자 추출
+                    author_elem = await post_element.query_selector(".td_name .p-nick a")
+                    if not author_elem:
+                        continue
+                    author = await author_elem.inner_text()
+                    
+                    # 작성일 추출
+                    date_elem = await post_element.query_selector(".td_date")
+                    if date_elem:
+                        date_str = await date_elem.inner_text()
+                        created_at = self._parse_date(date_str)
+                    else:
+                        created_at = datetime.now()
+                    
+                    # 게시글 URL 추출
+                    link_elem = await post_element.query_selector(".td_article .article")
+                    post_url = None
+                    if link_elem:
+                        href = await link_elem.get_attribute("href")
+                        if href:
+                            post_url = f"{cafe_url}{href}"
+                    
+                    # 조회수 추출
+                    view_elem = await post_element.query_selector(".td_view")
+                    view_count = None
+                    if view_elem:
+                        view_text = await view_elem.inner_text()
+                        try:
+                            view_count = int(view_text.strip())
+                        except ValueError:
+                            pass
+                    
+                    # NaverPost 객체 생성 (content는 상세 페이지에서 가져와야 함)
+                    post = NaverPost(
+                        title=title,
+                        author=author,
+                        content="",  # 나중에 상세 페이지에서 채워야 함
+                        post_id=post_id,
+                        created_at=created_at,
+                        post_url=post_url,
+                        view_count=view_count
+                    )
+                    
+                    posts.append(post)
+                    
+                except Exception as e:
+                    self._logger.warning(f"게시글 파싱 중 오류: {str(e)}")
+                    continue
+            
+            self._logger.info(f"페이지 {page_num}에서 {len(posts)}개 게시글 수집")
+            
+        except Exception as e:
+            self._logger.error(f"페이지 {page_num} 크롤링 중 오류: {str(e)}")
+        
+        return posts
+    
+    def _extract_cafe_id(self, cafe_url: str) -> str:
+        """카페 URL에서 카페 ID 추출."""
+        import re
+        match = re.search(r'cafe\.naver\.com/([^/?]+)', cafe_url)
+        return match.group(1) if match else ""
+    
+    def _parse_date(self, date_str: str) -> 'datetime':
+        """날짜 문자열을 datetime 객체로 변환."""
+        from datetime import datetime
+        import re
+        
+        # "2024.01.15." 형식
+        if '.' in date_str:
+            date_str = date_str.strip('.')
+            try:
+                return datetime.strptime(date_str, "%Y.%m.%d")
+            except ValueError:
+                pass
+        
+        # "01.15." 형식 (올해)
+        if re.match(r'^\d{2}\.\d{2}\.$', date_str):
+            current_year = datetime.now().year
+            date_str = f"{current_year}.{date_str}"
+            try:
+                return datetime.strptime(date_str.strip('.'), "%Y.%m.%d")
+            except ValueError:
+                pass
+        
+        # "12:34" 형식 (오늘)
+        if ':' in date_str and '.' not in date_str:
+            today = datetime.now()
+            try:
+                time_parts = date_str.split(':')
+                hour = int(time_parts[0])
+                minute = int(time_parts[1])
+                return today.replace(hour=hour, minute=minute, second=0, microsecond=0)
+            except (ValueError, IndexError):
+                pass
+        
+        # 파싱 실패 시 현재 시간 반환
+        return datetime.now()
+    
+    async def _get_post_content(self, post_url: str) -> Optional[str]:
+        """게시글 상세 페이지에서 본문 내용을 가져오기."""
+        try:
+            # 게시글 상세 페이지로 이동
+            await self._page.goto(post_url, wait_until="networkidle")
+            await self._page.wait_for_timeout(1000)
+            
+            # iframe으로 전환
+            iframe_element = await self._page.query_selector("#cafe_main")
+            if not iframe_element:
+                self._logger.error("상세 페이지 iframe을 찾을 수 없습니다")
+                return None
+            
+            frame = await iframe_element.content_frame()
+            if not frame:
+                self._logger.error("상세 페이지 iframe content를 찾을 수 없습니다")
+                return None
+            
+            # 본문 내용 추출
+            content_selectors = [
+                ".se-main-container",  # 스마트에디터 ONE
+                ".ContentRenderer",     # 새로운 에디터
+                "#postViewArea",       # 구 에디터
+                ".NHN_Writeform_Main", # 구 에디터2
+                ".content.CafeViewer"  # 모바일 에디터
+            ]
+            
+            content = ""
+            for selector in content_selectors:
+                content_elem = await frame.query_selector(selector)
+                if content_elem:
+                    content = await content_elem.inner_text()
+                    if content.strip():
+                        break
+            
+            return content.strip()
+            
+        except Exception as e:
+            self._logger.error(f"게시글 내용 가져오기 중 오류: {str(e)}")
+            return None
+    
+    def _remove_duplicate_posts(self, posts: List[NaverPost]) -> List[NaverPost]:
+        """중복 게시글 제거 (post_id 기준)."""
+        seen_ids = set()
+        unique_posts = []
+        
+        for post in posts:
+            if post.post_id not in seen_ids:
+                seen_ids.add(post.post_id)
+                unique_posts.append(post)
+            else:
+                self._logger.debug(f"중복 게시글 제거: ID={post.post_id}, 제목={post.title}")
+        
+        if len(posts) != len(unique_posts):
+            self._logger.info(f"중복 게시글 {len(posts) - len(unique_posts)}개 제거됨")
+        
+        return unique_posts
+    
+    async def close(self) -> None:
+        """브라우저 리소스 정리."""
+        try:
+            if self._browser:
+                await self._browser.close()
+            if hasattr(self, '_playwright'):
+                await self._playwright.stop()
+            
+            self._logger.info("브라우저 리소스 정리 완료")
+            
+        except Exception as e:
+            self._logger.error(f"브라우저 종료 중 오류 발생: {str(e)}")
+    
+    async def _try_login_with_cookies(self) -> bool:
+        """저장된 쿠키를 사용하여 로그인 시도."""
+        if not self._cookies_path.exists():
+            self._logger.info("저장된 쿠키가 없습니다")
+            return False
+        
+        try:
+            with open(self._cookies_path, 'r', encoding='utf-8') as f:
+                cookies = json.load(f)
+            
+            await self._page.context.add_cookies(cookies)
+            await self._page.goto("https://www.naver.com", wait_until="networkidle")
+            
+            if await self._verify_login_success():
+                self._logger.info("쿠키를 사용한 자동 로그인 성공")
+                return True
+            else:
+                self._logger.info("저장된 쿠키가 만료되었습니다")
+                return False
+                
+        except Exception as e:
+            self._logger.warning(f"쿠키 로그인 시도 중 오류: {str(e)}")
+            return False
+    
+    async def _verify_login_success(self) -> bool:
+        """로그인 성공 여부를 확인."""
+        try:
+            # 네이버 메인페이지로 이동하여 로그인 상태 확인
+            await self._page.goto("https://www.naver.com", wait_until="networkidle")
+            
+            # 로그인된 사용자의 프로필 영역 확인
+            profile_selector = ".MyView-module__link_login___HpHMW, .area_links .link_login"
+            login_button_selector = ".link_login"
+            
+            # 로그인 버튼이 있으면 로그인 실패
+            login_button = await self._page.query_selector(login_button_selector)
+            if login_button:
+                return False
+            
+            # 프로필 영역이 있으면 로그인 성공
+            profile = await self._page.query_selector(profile_selector)
+            return profile is not None
+            
+        except Exception as e:
+            self._logger.error(f"로그인 확인 중 오류: {str(e)}")
+            return False
+    
+    async def _save_cookies(self) -> None:
+        """현재 세션의 쿠키를 저장."""
+        try:
+            # data 디렉토리가 없으면 생성
+            self._cookies_path.parent.mkdir(exist_ok=True)
+            
+            cookies = await self._page.context.cookies()
+            with open(self._cookies_path, 'w', encoding='utf-8') as f:
+                json.dump(cookies, f, ensure_ascii=False, indent=2)
+            
+            self._logger.info(f"쿠키를 {self._cookies_path}에 저장했습니다")
+            
+        except Exception as e:
+            self._logger.error(f"쿠키 저장 중 오류: {str(e)}")

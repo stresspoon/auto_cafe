@@ -1,0 +1,23 @@
+[naver]
+cafe_url = https://cafe.naver.com/your_cafe
+board_id = your_board_id
+crawl_pages = 3
+
+[google]
+sheet_id = your_google_sheet_id
+credentials_path = data/credentials.json
+
+[logging]
+level = INFO
+file_path = logs/qok6.log
+
+[scheduling]
+execution_hour = 0
+execution_minute = 0
+timezone = Asia/Seoul
+
+[notification]
+smtp_server = smtp.gmail.com
+smtp_port = 587
+email_user = your_email@gmail.com
+recipients = admin@example.com,manager@example.com
