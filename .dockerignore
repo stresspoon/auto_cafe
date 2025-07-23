@@ -1,0 +1,66 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+.coverage
+.pytest_cache
+.mypy_cache
+
+# 가상환경
+venv/
+env/
+.venv/
+.env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+ehthumbs.db
+
+# 로그 파일
+logs/
+*.log
+
+# 임시 파일
+*.tmp
+*.temp
+capture.txt
+extract_names.py
+debug_*.py
+test_*.py
+
+# 스크린샷
+screenshot*.png
+
+# 설정 파일 (빌드 시 포함하지 않음 - 볼륨 마운트 사용)
+# config/settings.ini
+# data/credentials.json
+# data/naver_cookies.json
+
+# Docker
+.dockerignore
+Dockerfile
+docker-compose.yml
+
+# 문서
+README.md
+DEPLOYMENT.md
+CLAUDE.md
+
+# Vooster 문서
+vooster-docs/

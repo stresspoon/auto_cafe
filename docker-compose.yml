@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  qok6-automation:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: qok6-automation
+    ports:
+      - "8001:8001"
+    volumes:
+      # 설정 파일 마운트
+      - ./config:/app/config:ro
+      # 데이터 디렉토리 마운트 (구글 인증 파일 등)
+      - ./data:/app/data:ro
+      # 로그 디렉토리 마운트
+      - ./logs:/app/logs:rw
+    environment:
+      # Python 환경 변수
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+      # Playwright 환경 변수 (헤드리스 모드)
+      - PLAYWRIGHT_BROWSERS_PATH=/home/qok6user/.cache/ms-playwright
+      # 디스플레이 설정 (헤드리스)
+      - DISPLAY=:99
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    # 리소스 제한
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    # 보안 설정
+    security_opt:
+      - no-new-privileges:true
+    # 네트워크 설정
+    networks:
+      - qok6-network
+
+  # 선택사항: Redis (향후 세션 관리용)
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: qok6-redis
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - redis-data:/data
+  #   restart: unless-stopped
+  #   networks:
+  #     - qok6-network
+
+# 네트워크 설정
+networks:
+  qok6-network:
+    driver: bridge
+    name: qok6-network
+
+# 볼륨 설정 (선택사항)
+# volumes:
+#   redis-data:
+#     driver: local

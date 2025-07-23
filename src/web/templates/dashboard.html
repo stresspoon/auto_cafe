@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QOK6 자동화 서비스 대시보드</title>
+    <link href="/static/style.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1><i class="fas fa-robot"></i> QOK6 자동화 서비스</h1>
+            <p class="subtitle">네이버 카페 챌린지 미션 → 구글 시트 자동 체크</p>
+        </header>
+
+        {% if error %}
+        <div class="alert alert-error">
+            <i class="fas fa-exclamation-triangle"></i> {{ error }}
+        </div>
+        {% else %}
+
+        <!-- 상태 카드 -->
+        <div class="status-cards">
+            <div class="card status-card">
+                <div class="card-icon healthy">
+                    <i class="fas fa-heartbeat"></i>
+                </div>
+                <div class="card-content">
+                    <h3>시스템 상태</h3>
+                    <p class="status-value">정상 운영</p>
+                </div>
+            </div>
+            
+            <div class="card status-card">
+                <div class="card-icon success">
+                    <i class="fas fa-chart-line"></i>
+                </div>
+                <div class="card-content">
+                    <h3>최근 7일 성공률</h3>
+                    <p class="status-value">{{ "%.1f"|format(success_rate) }}%</p>
+                </div>
+            </div>
+            
+            <div class="card status-card">
+                <div class="card-icon info">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <div class="card-content">
+                    <h3>마지막 실행</h3>
+                    {% if recent_logs %}
+                    <p class="status-value">{{ recent_logs[0]['started_at'][:19] }}</p>
+                    {% else %}
+                    <p class="status-value">없음</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- 실행 버튼 -->
+        <div class="action-section">
+            <button id="runBtn" class="btn btn-primary" onclick="runAutomation()">
+                <i class="fas fa-play"></i> 수동 실행
+            </button>
+            <button id="scheduleBtn" class="btn btn-secondary" onclick="toggleScheduleForm()">
+                <i class="fas fa-clock"></i> 스케줄 설정
+            </button>
+            <div id="executionStatus" class="execution-status hidden">
+                <div class="spinner"></div>
+                <span id="statusText">실행 중...</span>
+            </div>
+        </div>
+
+        <!-- 스케줄 설정 폼 -->
+        <div id="scheduleForm" class="card schedule-form hidden">
+            <div class="card-header">
+                <h2><i class="fas fa-calendar-alt"></i> 자동 실행 스케줄</h2>
+                <div id="currentSchedule" class="current-schedule">
+                    로딩 중...
+                </div>
+            </div>
+            <div class="schedule-controls">
+                <div class="time-input-group">
+                    <label for="scheduleHour">시간</label>
+                    <select id="scheduleHour">
+                        {% for h in range(24) %}
+                        <option value="{{ h }}" {{ 'selected' if h == 0 else '' }}>{{ "%02d"|format(h) }}</option>
+                        {% endfor %}
+                    </select>
+                    <span>:</span>
+                    <label for="scheduleMinute">분</label>
+                    <select id="scheduleMinute">
+                        {% for m in range(0, 60, 5) %}
+                        <option value="{{ m }}" {{ 'selected' if m == 0 else '' }}>{{ "%02d"|format(m) }}</option>
+                        {% endfor %}
+                    </select>
+                    <span class="timezone-info">KST</span>
+                </div>
+                <div class="schedule-buttons">
+                    <button class="btn btn-primary" onclick="setupSchedule()">
+                        <i class="fas fa-save"></i> 설정 저장
+                    </button>
+                    <button class="btn btn-danger" onclick="removeSchedule()">
+                        <i class="fas fa-trash"></i> 스케줄 제거
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 최근 실행 로그 -->
+        <div class="card">
+            <div class="card-header">
+                <h2><i class="fas fa-list"></i> 최근 실행 기록</h2>
+                <button class="btn btn-secondary" onclick="refreshLogs()">
+                    <i class="fas fa-sync-alt"></i> 새로고침
+                </button>
+            </div>
+            <div class="log-container">
+                {% if recent_logs %}
+                <div class="log-list">
+                    {% for log in recent_logs %}
+                    <div class="log-item {{ 'success' if log['success'] else 'error' }}">
+                        <div class="log-icon">
+                            {% if log['success'] %}
+                            <i class="fas fa-check-circle"></i>
+                            {% else %}
+                            <i class="fas fa-times-circle"></i>
+                            {% endif %}
+                        </div>
+                        <div class="log-content">
+                            <div class="log-header">
+                                <span class="log-time">{{ log['started_at'][:19] }}</span>
+                                <span class="log-status">{{ '성공' if log['success'] else '실패' }}</span>
+                            </div>
+                            <div class="log-details">
+                                {% if log['results'] %}
+                                처리 주차: {{ log['results']['weeks_processed'] }}개 | 
+                                크롤링 게시글: {{ log['results']['total_posts'] }}개 |
+                                참여자: {{ log['results']['participants']|length }}명
+                                {% endif %}
+                            </div>
+                            {% if log['error_message'] %}
+                            <div class="log-error">{{ log['error_message'] }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="empty-state">
+                    <i class="fas fa-inbox"></i>
+                    <p>실행 기록이 없습니다</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        {% endif %}
+    </div>
+
+    <script src="/static/dashboard.js"></script>
+</body>
+</html>
