@@ -1,0 +1,517 @@
+/* QOK6 자동화 서비스 대시보드 스타일 */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f5f7fa;
+    color: #333;
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* Header */
+.header {
+    text-align: center;
+    margin-bottom: 30px;
+    padding: 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 15px;
+    color: white;
+    box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
+}
+
+.header h1 {
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+    font-weight: 700;
+}
+
+.header h1 i {
+    margin-right: 10px;
+}
+
+.subtitle {
+    font-size: 1.2rem;
+    opacity: 0.9;
+    font-weight: 300;
+}
+
+/* Alert */
+.alert {
+    padding: 15px 20px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    font-weight: 500;
+}
+
+.alert i {
+    margin-right: 10px;
+    font-size: 1.2rem;
+}
+
+.alert-error {
+    background-color: #fee2e2;
+    color: #dc2626;
+    border: 1px solid #fca5a5;
+}
+
+/* Status Cards */
+.status-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.card {
+    background: white;
+    border-radius: 15px;
+    padding: 25px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e5e7eb;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+}
+
+.status-card {
+    display: flex;
+    align-items: center;
+}
+
+.card-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 20px;
+    font-size: 1.5rem;
+}
+
+.card-icon.healthy {
+    background-color: #dcfce7;
+    color: #16a34a;
+}
+
+.card-icon.success {
+    background-color: #dbeafe;
+    color: #2563eb;
+}
+
+.card-icon.info {
+    background-color: #fef3c7;
+    color: #d97706;
+}
+
+.card-content h3 {
+    font-size: 0.9rem;
+    color: #6b7280;
+    margin-bottom: 5px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.status-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #1f2937;
+}
+
+/* Action Section */
+.action-section {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 15px 30px;
+    border-radius: 10px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
+}
+
+.btn i {
+    margin-right: 8px;
+}
+
+.btn-secondary {
+    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+    font-size: 0.9rem;
+    padding: 10px 20px;
+}
+
+/* Execution Status */
+.execution-status {
+    margin-top: 20px;
+    padding: 15px 25px;
+    background-color: #fef3c7;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #fbbf24;
+}
+
+.execution-status.hidden {
+    display: none;
+}
+
+.execution-status.success {
+    background-color: #dcfce7;
+    border-color: #22c55e;
+    color: #15803d;
+}
+
+.execution-status.error {
+    background-color: #fee2e2;
+    border-color: #ef4444;
+    color: #dc2626;
+}
+
+.spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #d97706;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-right: 10px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Card Header */
+.card-header {
+    display: flex;
+    justify-content: between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #f3f4f6;
+}
+
+.card-header h2 {
+    font-size: 1.3rem;
+    color: #1f2937;
+    font-weight: 600;
+}
+
+.card-header h2 i {
+    margin-right: 10px;
+    color: #6366f1;
+}
+
+/* Log Container */
+.log-container {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.log-list {
+    space-y: 10px;
+}
+
+.log-item {
+    display: flex;
+    align-items: flex-start;
+    padding: 15px;
+    border-radius: 10px;
+    margin-bottom: 10px;
+    border-left: 4px solid;
+}
+
+.log-item.success {
+    background-color: #f0fdf4;
+    border-left-color: #22c55e;
+}
+
+.log-item.error {
+    background-color: #fef2f2;
+    border-left-color: #ef4444;
+}
+
+.log-icon {
+    margin-right: 15px;
+    font-size: 1.2rem;
+    margin-top: 2px;
+}
+
+.log-item.success .log-icon {
+    color: #22c55e;
+}
+
+.log-item.error .log-icon {
+    color: #ef4444;
+}
+
+.log-content {
+    flex: 1;
+}
+
+.log-header {
+    display: flex;
+    justify-content: between;
+    align-items: center;
+    margin-bottom: 5px;
+}
+
+.log-time {
+    font-weight: 600;
+    color: #374151;
+    font-size: 0.9rem;
+}
+
+.log-status {
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 5px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.log-item.success .log-status {
+    background-color: #22c55e;
+    color: white;
+}
+
+.log-item.error .log-status {
+    background-color: #ef4444;
+    color: white;
+}
+
+.log-details {
+    font-size: 0.85rem;
+    color: #6b7280;
+    margin-bottom: 5px;
+}
+
+.log-error {
+    font-size: 0.8rem;
+    color: #dc2626;
+    font-style: italic;
+    padding: 5px 10px;
+    background-color: rgba(239, 68, 68, 0.1);
+    border-radius: 5px;
+    margin-top: 5px;
+}
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: #6b7280;
+}
+
+.empty-state i {
+    font-size: 3rem;
+    margin-bottom: 15px;
+    opacity: 0.5;
+}
+
+.empty-state p {
+    font-size: 1.1rem;
+    font-weight: 500;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .container {
+        padding: 15px;
+    }
+    
+    .header h1 {
+        font-size: 2rem;
+    }
+    
+    .subtitle {
+        font-size: 1rem;
+    }
+    
+    .status-cards {
+        grid-template-columns: 1fr;
+    }
+    
+    .card {
+        padding: 20px;
+    }
+    
+    .card-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+}
+
+/* Schedule Form */
+.schedule-form {
+    margin-bottom: 30px;
+}
+
+.current-schedule {
+    background-color: #f8fafc;
+    padding: 10px 15px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    font-weight: 500;
+    color: #475569;
+}
+
+.schedule-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.time-input-group {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 20px;
+    background-color: #f8fafc;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+}
+
+.time-input-group label {
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 0;
+}
+
+.time-input-group select {
+    padding: 8px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background-color: white;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #374151;
+    cursor: pointer;
+}
+
+.time-input-group select:focus {
+    outline: none;
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.time-input-group span {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #6b7280;
+}
+
+.timezone-info {
+    background-color: #e0e7ff;
+    color: #3730a3;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+.schedule-buttons {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+}
+
+.btn-danger {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+}
+
+.btn-danger:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(239, 68, 68, 0.4);
+}
+
+/* Schedule Status Indicators */
+.schedule-active {
+    color: #16a34a;
+    font-weight: 600;
+}
+
+.schedule-inactive {
+    color: #6b7280;
+    font-style: italic;
+}
+
+.next-run {
+    font-size: 0.9rem;
+    color: #6366f1;
+    margin-top: 5px;
+}
+
+/* Utilities */
+.hidden {
+    display: none !important;
+}
+
+.text-center {
+    text-align: center;
+}
+
+/* Additional responsive adjustments */
+@media (max-width: 768px) {
+    .schedule-buttons {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .time-input-group {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    
+    .action-section {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        align-items: center;
+    }
+}

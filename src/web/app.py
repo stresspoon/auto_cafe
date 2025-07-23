@@ -3,12 +3,17 @@
 import asyncio
 from datetime import datetime
 from typing import Dict, List, Any, Optional
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
+from pathlib import Path
 
 from ..core.logger import get_logger, LoggerSetup
 from ..main import QOK6AutomationSystem
 from .services import ExecutionLogService
+from ..scheduler.cron_service import CronService
 
 
 # 응답 모델 정의
@@ -45,16 +50,22 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# 정적 파일과 템플릿 설정
+current_dir = Path(__file__).parent
+app.mount("/static", StaticFiles(directory=str(current_dir / "static")), name="static")
+templates = Jinja2Templates(directory=str(current_dir / "templates"))
+
 # 전역 변수
 automation_system: Optional[QOK6AutomationSystem] = None
 log_service: Optional[ExecutionLogService] = None
+cron_service: Optional[CronService] = None
 logger = get_logger(__name__)
 
 
 @app.on_event("startup")
 async def startup_event():
     """애플리케이션 시작 시 초기화."""
-    global automation_system, log_service
+    global automation_system, log_service, cron_service
     
     try:
         # 로깅 설정
@@ -65,6 +76,9 @@ async def startup_event():
         
         # 실행 로그 서비스 초기화
         log_service = ExecutionLogService()
+        
+        # Cron 서비스 초기화
+        cron_service = CronService()
         
         logger.info("QOK6 웹 애플리케이션 시작됨")
         
@@ -79,9 +93,36 @@ async def shutdown_event():
     logger.info("QOK6 웹 애플리케이션 종료됨")
 
 
-@app.get("/")
-async def root():
-    """루트 엔드포인트."""
+@app.get("/", response_class=HTMLResponse)
+async def dashboard(request: Request):
+    """메인 대시보드 페이지."""
+    if not automation_system or not log_service:
+        return templates.TemplateResponse("dashboard.html", {
+            "request": request,
+            "error": "시스템이 초기화되지 않았습니다"
+        })
+    
+    try:
+        # 최근 실행 로그 조회
+        recent_logs = log_service.get_logs(limit=10)
+        success_rate = log_service.get_success_rate(days=7)
+        
+        return templates.TemplateResponse("dashboard.html", {
+            "request": request,
+            "recent_logs": recent_logs,
+            "success_rate": success_rate * 100,
+            "system_status": "healthy"
+        })
+    except Exception as e:
+        logger.error(f"대시보드 로드 중 오류: {str(e)}")
+        return templates.TemplateResponse("dashboard.html", {
+            "request": request,
+            "error": f"대시보드 로드 실패: {str(e)}"
+        })
+
+@app.get("/api")
+async def api_root():
+    """API 정보 엔드포인트."""
     return {
         "service": "QOK6 자동화 서비스",
         "version": "1.0.0",
@@ -89,7 +130,8 @@ async def root():
         "endpoints": {
             "manual_run": "/run",
             "logs": "/logs",
-            "status": "/status"
+            "status": "/status",
+            "dashboard": "/"
         }
     }
 
@@ -226,6 +268,74 @@ async def get_status():
     except Exception as e:
         logger.error(f"상태 조회 중 오류: {str(e)}")
         return {"status": "error", "message": f"상태 조회 실패: {str(e)}"}
+
+
+@app.get("/schedule")
+async def get_schedule_status():
+    """Cron 스케줄 상태 조회."""
+    if not cron_service:
+        raise HTTPException(status_code=500, detail="Cron 서비스가 초기화되지 않았습니다")
+    
+    try:
+        status = cron_service.get_cron_status()
+        return {
+            "cron_status": status,
+            "timezone": "KST (UTC+9)"
+        }
+    except Exception as e:
+        logger.error(f"스케줄 상태 조회 중 오류: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"스케줄 상태 조회 실패: {str(e)}")
+
+
+@app.post("/schedule")
+async def setup_schedule(hour: int = 0, minute: int = 0):
+    """매일 실행 스케줄 설정."""
+    if not cron_service:
+        raise HTTPException(status_code=500, detail="Cron 서비스가 초기화되지 않았습니다")
+    
+    if not (0 <= hour <= 23) or not (0 <= minute <= 59):
+        raise HTTPException(status_code=400, detail="올바른 시간을 입력해주세요 (시: 0-23, 분: 0-59)")
+    
+    try:
+        success = cron_service.setup_daily_cron(hour=hour, minute=minute)
+        
+        if success:
+            logger.info(f"Cron 스케줄 설정 완료: 매일 {hour:02d}:{minute:02d}")
+            return {
+                "success": True,
+                "message": f"매일 {hour:02d}:{minute:02d}에 자동 실행되도록 설정되었습니다",
+                "schedule": f"{hour:02d}:{minute:02d}",
+                "timezone": "KST (UTC+9)"
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Cron 설정에 실패했습니다")
+            
+    except Exception as e:
+        logger.error(f"스케줄 설정 중 오류: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"스케줄 설정 실패: {str(e)}")
+
+
+@app.delete("/schedule")
+async def remove_schedule():
+    """자동 실행 스케줄 제거."""
+    if not cron_service:
+        raise HTTPException(status_code=500, detail="Cron 서비스가 초기화되지 않았습니다")
+    
+    try:
+        success = cron_service.remove_cron()
+        
+        if success:
+            logger.info("Cron 스케줄 제거 완료")
+            return {
+                "success": True,
+                "message": "자동 실행 스케줄이 제거되었습니다"
+            }
+        else:
+            raise HTTPException(status_code=500, detail="스케줄 제거에 실패했습니다")
+            
+    except Exception as e:
+        logger.error(f"스케줄 제거 중 오류: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"스케줄 제거 실패: {str(e)}")
 
 
 if __name__ == "__main__":
