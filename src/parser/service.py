@@ -3,6 +3,7 @@
 import re
 from typing import List, Dict, Set, Optional, Tuple
 from datetime import datetime, timedelta
+from bs4 import BeautifulSoup
 
 from ..core.logger import get_logger, log_execution_time
 from ..core.exceptions import ParsingError
@@ -45,6 +46,10 @@ class DataParsingService:
                 f"주차별 제출 정보 추출 완료: "
                 f"{len(weekly_submissions)}개 주차, 총 {total_submissions}건"
             )
+            
+            # 디버깅을 위해 실제 데이터 출력
+            for week, authors in weekly_submissions.items():
+                self._logger.info(f"  {week}주차 제출자: {list(authors)}")
             
             return weekly_submissions
             
@@ -191,3 +196,67 @@ class DataParsingService:
         except Exception as e:
             self._logger.error(f"파싱 결과 유효성 검증 중 오류 발생: {str(e)}")
             return False
+    
+    def extract_names_from_html_file(self, file_path: str) -> List[str]:
+        """HTML 파일에서 'a.article' CSS 선택자를 사용하여 이름을 추출."""
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                html_content = f.read()
+
+            soup = BeautifulSoup(html_content, 'lxml')
+            article_links = soup.select('a.article')
+            names = [link.get_text(strip=True) for link in article_links]
+            
+            self._logger.info(f"HTML 파일에서 {len(names)}개의 이름 추출 완료: {file_path}")
+            return names
+            
+        except FileNotFoundError:
+            self._logger.error(f"파일을 찾을 수 없습니다: {file_path}")
+            raise ParsingError(f"파일을 찾을 수 없습니다: {file_path}")
+        except Exception as e:
+            self._logger.error(f"HTML 파일 파싱 중 오류 발생: {str(e)}")
+            raise ParsingError(f"HTML 파일 파싱 중 오류 발생: {str(e)}")
+    
+    def parse_week_and_name(self, text: str) -> Tuple[Optional[int], str]:
+        """'1주차 김상현' 형태의 텍스트에서 주차와 이름을 분리."""
+        try:
+            # 주차 패턴 매칭
+            week_match = self._week_pattern.search(text)
+            
+            if week_match:
+                week_number = int(week_match.group(1))
+                # 주차 부분을 제거하고 이름만 추출
+                name_part = text.replace(week_match.group(0), '').strip()
+                return week_number, name_part
+            else:
+                # 주차 정보가 없으면 전체를 이름으로 간주
+                return None, text.strip()
+                
+        except Exception as e:
+            self._logger.error(f"주차/이름 파싱 중 오류: {str(e)}")
+            return None, text.strip()
+    
+    def extract_weekly_submissions_from_html(self, file_path: str) -> Dict[int, Set[str]]:
+        """HTML 파일에서 주차별 제출자 정보를 직접 추출."""
+        try:
+            raw_names = self.extract_names_from_html_file(file_path)
+            weekly_submissions = {}
+            
+            for raw_name in raw_names:
+                week_number, name = self.parse_week_and_name(raw_name)
+                
+                if week_number and name:
+                    if week_number not in weekly_submissions:
+                        weekly_submissions[week_number] = set()
+                    
+                    # 이름 정규화
+                    normalized_name = self._normalize_author_name(name)
+                    weekly_submissions[week_number].add(normalized_name)
+                    
+                    self._logger.debug(f"HTML에서 추출: {normalized_name} -> {week_number}주차")
+            
+            self._logger.info(f"HTML에서 주차별 제출자 추출 완료: {len(weekly_submissions)}개 주차")
+            return weekly_submissions
+            
+        except Exception as e:
+            raise ParsingError(f"HTML에서 주차별 제출자 추출 중 오류 발생: {str(e)}")

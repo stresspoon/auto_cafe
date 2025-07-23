@@ -88,3 +88,29 @@ def safe_get_dict_value(
 ) -> Any:
     """딕셔너리에서 안전하게 값을 가져오기 (키가 없어도 예외 발생 안함)."""
     return dictionary.get(key, default)
+
+
+def extract_name_from_title(title: str) -> Optional[str]:
+    """제목에서 이름을 추출합니다. '1주차 김상현' 형태에서 '김상현' 추출."""
+    # 주차 패턴 다음에 오는 한국어 이름 추출
+    # 예: "1주차 김상현", "2주차 박민수" -> "김상현", "박민수"
+    pattern = r'\d+주차\s*([가-힣]{2,4})'
+    match = re.search(pattern, title)
+    if match:
+        return match.group(1).strip()
+    
+    # 영어 이름 패턴 추출 (Elias 같은 경우)
+    # 예: "1주차 Elias", "2주차 John" -> "Elias", "John"
+    pattern = r'\d+주차\s*([A-Za-z]{2,20})'
+    match = re.search(pattern, title)
+    if match:
+        return match.group(1).strip()
+    
+    # 한국어 이름만 있는 경우 (주차 없이)
+    # 예: "김상현", "박민수" -> "김상현", "박민수"
+    pattern = r'^([가-힣]{2,4})\s*$'
+    match = re.search(pattern, title.strip())
+    if match:
+        return match.group(1).strip()
+        
+    return None

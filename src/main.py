@@ -73,24 +73,33 @@ class QOK6AutomationSystem:
         try:
             self.logger.info("=== QOK6 자동화 사이클 시작 ===")
             
-            # 1. 네이버 크롤러 초기화 및 로그인
-            await self.naver_crawler.initialize_browser()
-            login_success = await self.naver_crawler.login_to_naver()
-            
-            if not login_success:
-                raise QOK6Exception("네이버 로그인에 실패했습니다")
-            
-            # 2. 게시글 크롤링
-            posts = await self.naver_crawler.crawl_cafe_posts(
-                cafe_url=self.config.cafe_url,
-                board_id=self.config.board_id,
-                pages=self.config.crawl_pages
-            )
-            results['total_posts'] = len(posts)
-            
-            # 3. 데이터 파싱
-            challenge_posts = self.parser.filter_challenge_posts(posts)
-            weekly_submissions = self.parser.extract_weekly_submissions(challenge_posts)
+            # capture.txt 파일 우선 확인
+            import os
+            if os.path.exists('capture.txt'):
+                self.logger.info("capture.txt 파일 발견, HTML에서 직접 파싱합니다 (크롤링 생략)")
+                weekly_submissions = self.parser.extract_weekly_submissions_from_html('capture.txt')
+                results['total_posts'] = 0  # 크롤링하지 않음
+            else:
+                self.logger.info("capture.txt 파일 없음, 크롤링을 시작합니다")
+                
+                # 1. 네이버 크롤러 초기화 및 로그인
+                await self.naver_crawler.initialize_browser()
+                login_success = await self.naver_crawler.login_to_naver()
+                
+                if not login_success:
+                    raise QOK6Exception("네이버 로그인에 실패했습니다")
+                
+                # 2. 게시글 크롤링
+                posts = await self.naver_crawler.crawl_cafe_posts(
+                    cafe_url=self.config.cafe_url,
+                    board_id=self.config.board_id,
+                    pages=self.config.crawl_pages
+                )
+                results['total_posts'] = len(posts)
+                
+                # 3. 데이터 파싱
+                challenge_posts = self.parser.filter_challenge_posts(posts)
+                weekly_submissions = self.parser.extract_weekly_submissions(challenge_posts)
             
             # 파싱 결과 유효성 검증
             if not self.parser.validate_parsing_result(weekly_submissions):

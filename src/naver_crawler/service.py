@@ -201,22 +201,18 @@ class NaverCrawlerService:
                 
                 return posts
             
-            for idx, post_element in enumerate(post_elements[:3]):  # 처음 3개만 디버깅
+            for idx, post_element in enumerate(post_elements):  # 모든 게시글 처리
                 try:
                     # 공지사항 등 제외 (더 관대하게 처리)
                     is_notice = await post_element.get_attribute("class")
                     self._logger.info(f"게시글 {idx+1}: class = {is_notice}")
                     
-                    # 공지사항 체크를 일단 비활성화하고 모든 게시글 처리
-                    # if is_notice and "notice" in is_notice:
-                    #     self._logger.info(f"게시글 {idx+1}: 공지사항으로 건너뜀")
-                    #     continue
+                    # 공지사항 체크 활성화
+                    if is_notice and "notice" in is_notice.lower():
+                        self._logger.info(f"게시글 {idx+1}: 공지사항으로 건너뜀 (class: {is_notice})")
+                        continue
                     
-                    # 디버깅: 게시글 요소의 구조 확인
-                    element_html = await post_element.inner_html()
-                    self._logger.info(f"게시글 {idx+1} HTML 구조: {element_html[:300]}...")
-                    
-                    # 기본 텍스트도 확인
+                    # 기본 텍스트 확인
                     element_text = await post_element.inner_text()
                     self._logger.info(f"게시글 {idx+1} 텍스트: {element_text[:100]}...")
                     
@@ -296,8 +292,13 @@ class NaverCrawlerService:
                             break
                     
                     if not author_elem:
-                        self._logger.warning(f"게시글 {idx+1}에서 작성자를 찾을 수 없습니다 - 기본값 사용")
-                        author = "unknown_author"  # 기본값 설정
+                        self._logger.warning(f"게시글 {idx+1}에서 작성자를 찾을 수 없습니다 - 제목에서 추출 시도")
+                        # 제목에서 이름 추출 시도
+                        from src.shared.utils import extract_name_from_title
+                        extracted_name = extract_name_from_title(title)
+                        author = extracted_name if extracted_name else "unknown_author"
+                        if extracted_name:
+                            self._logger.info(f"게시글 {idx+1}: 제목에서 이름 추출 성공 - {extracted_name}")
                     else:
                         author = await author_elem.inner_text()
                     

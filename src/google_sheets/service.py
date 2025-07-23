@@ -262,32 +262,29 @@ class GoogleSheetsService:
     
     @log_execution_time 
     def update_attendance_from_submissions(self, weekly_submissions: Dict[int, Set[str]]) -> bool:
-        """주차별 제출자 정보를 바탕으로 출석 현황을 업데이트."""
+        """주차별 제출자 정보를 바탕으로 출석 현황을 업데이트 (제출자만 O로 표시, 기존 데이터 보존)."""
         try:
-            # 시트에서 참여자 목록 가져오기
-            all_participants = self.get_participants_list()
-            
-            if not all_participants:
-                self._logger.warning("시트에서 참여자 목록을 가져올 수 없습니다")
-                return False
-            
-            # 출석 데이터 생성
+            # 제출자만 O로 업데이트 (X 표시는 하지 않음)
             attendance_data = {}
             
-            for participant in all_participants:
-                attendance_data[participant] = {}
+            for week_number, submitters in weekly_submissions.items():
+                self._logger.info(f"{week_number}주차 제출자 {len(submitters)}명 업데이트 예정: {list(submitters)}")
                 
-                # 각 주차에 대해 출석 여부 확인
-                for week_number, submitters in weekly_submissions.items():
-                    # 참여자의 닉네임이 제출자 목록에 있는지 확인
-                    # (실제로는 닉네임 매핑이 필요할 수 있음)
-                    if participant in submitters:
-                        attendance_data[participant][week_number] = "O"
-                    else:
-                        attendance_data[participant][week_number] = "X"
+                for submitter in submitters:
+                    if submitter not in attendance_data:
+                        attendance_data[submitter] = {}
+                    attendance_data[submitter][week_number] = "O"
             
-            # 배치 업데이트 실행
-            return self.batch_update_attendance(attendance_data)
+            # 배치 업데이트 실행 (제출자만)
+            if attendance_data:
+                success = self.batch_update_attendance(attendance_data)
+                if success:
+                    total_updates = sum(len(weeks) for weeks in attendance_data.values())
+                    self._logger.info(f"출석 현황 업데이트 완료: {total_updates}개 셀이 'O'로 표시됨")
+                return success
+            else:
+                self._logger.warning("업데이트할 제출자 데이터가 없습니다")
+                return True
             
         except Exception as e:
             raise SheetUpdateError(f"제출 정보 기반 출석 업데이트 실패: {str(e)}")
