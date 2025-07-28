@@ -1,0 +1,42 @@
+# Large directories
+venv/
+tests/
+logs/
+vooster-docs/
+
+# Data files
+data/
+shared/
+
+# Development files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary files
+*.tmp
+temp/
+capture.txt
+extract_names.py
+screenshot.png
+server.log
+
+# Docker files
+Dockerfile
+docker-compose.yml
+
+# Documentation
+*.md
+!README.md
+
+# Cache and logs
+__pycache__/
+*.pyc
+*.log
+
+# Virtual environment
+.venv/
+env/
+ENV/

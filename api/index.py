@@ -1,8 +1,11 @@
 import sys
 import os
 import json
+from pathlib import Path
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+# Get the project root directory
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
 
 # Environment variables setup for Vercel
 if os.getenv('GOOGLE_CREDENTIALS_JSON'):
@@ -17,7 +20,20 @@ if os.getenv('NAVER_COOKIES_JSON'):
     with open('/tmp/naver_cookies.json', 'w') as f:
         json.dump(naver_cookies, f)
 
-from src.web.app import app
+# Disable scheduler in production
+os.environ['SCHEDULER_ENABLED'] = 'false'
+
+try:
+    from src.web.app import app
+except ImportError as e:
+    print(f"Import error: {e}")
+    # Create a simple fallback app
+    from fastapi import FastAPI
+    app = FastAPI()
+    
+    @app.get("/")
+    def read_root():
+        return {"message": "Auto Cafe API - Import Error", "error": str(e)}
 
 # Vercel expects a variable named 'app'
 app = app
