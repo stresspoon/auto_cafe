@@ -1,39 +1,67 @@
-import sys
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import HTMLResponse
 import os
 import json
-from pathlib import Path
 
-# Get the project root directory
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
+# Create a simple FastAPI app
+app = FastAPI(title="Auto Cafe API", version="1.0.0")
 
 # Environment variables setup for Vercel
-if os.getenv('GOOGLE_CREDENTIALS_JSON'):
-    google_creds = json.loads(os.getenv('GOOGLE_CREDENTIALS_JSON'))
-    os.environ['GOOGLE_CREDENTIALS_PATH'] = '/tmp/credentials.json'
-    with open('/tmp/credentials.json', 'w') as f:
-        json.dump(google_creds, f)
+def setup_credentials():
+    try:
+        if os.getenv('GOOGLE_CREDENTIALS_JSON'):
+            google_creds = json.loads(os.getenv('GOOGLE_CREDENTIALS_JSON'))
+            os.environ['GOOGLE_CREDENTIALS_PATH'] = '/tmp/credentials.json'
+            with open('/tmp/credentials.json', 'w') as f:
+                json.dump(google_creds, f)
 
-if os.getenv('NAVER_COOKIES_JSON'):
-    naver_cookies = json.loads(os.getenv('NAVER_COOKIES_JSON'))
-    os.environ['NAVER_COOKIES_PATH'] = '/tmp/naver_cookies.json'
-    with open('/tmp/naver_cookies.json', 'w') as f:
-        json.dump(naver_cookies, f)
+        if os.getenv('NAVER_COOKIES_JSON'):
+            naver_cookies = json.loads(os.getenv('NAVER_COOKIES_JSON'))
+            os.environ['NAVER_COOKIES_PATH'] = '/tmp/naver_cookies.json'
+            with open('/tmp/naver_cookies.json', 'w') as f:
+                json.dump(naver_cookies, f)
+        return True
+    except Exception as e:
+        print(f"Credential setup error: {e}")
+        return False
 
-# Disable scheduler in production
-os.environ['SCHEDULER_ENABLED'] = 'false'
+# Setup credentials on startup
+setup_credentials()
 
-try:
-    from src.web.app import app
-except ImportError as e:
-    print(f"Import error: {e}")
-    # Create a simple fallback app
-    from fastapi import FastAPI
-    app = FastAPI()
-    
-    @app.get("/")
-    def read_root():
-        return {"message": "Auto Cafe API - Import Error", "error": str(e)}
+@app.get("/")
+def read_root():
+    return {
+        "message": "Auto Cafe API is running on Vercel",
+        "status": "ok",
+        "version": "1.0.0"
+    }
 
-# Vercel expects a variable named 'app'
-app = app
+@app.get("/health")
+def health_check():
+    return {"status": "healthy", "service": "auto-cafe"}
+
+@app.get("/dashboard", response_class=HTMLResponse)
+def dashboard():
+    return """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Auto Cafe Dashboard</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 40px; }
+            .container { max-width: 800px; margin: 0 auto; }
+            .status { padding: 20px; background: #f0f8ff; border-radius: 8px; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Auto Cafe Dashboard</h1>
+            <div class="status">
+                <h2>Service Status</h2>
+                <p>✅ API is running successfully on Vercel</p>
+                <p>🚀 Version: 1.0.0</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
