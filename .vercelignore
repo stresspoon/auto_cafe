@@ -4,7 +4,7 @@ tests/
 logs/
 vooster-docs/
 
-# Data files
+# Data files that shouldn't be in production
 data/
 shared/
 
@@ -40,3 +40,7 @@ __pycache__/
 .venv/
 env/
 ENV/
+
+# Keep web static files and templates
+!src/web/static/
+!src/web/templates/
