@@ -265,3 +265,34 @@ def env_test():
         "static_files_available": bool(templates),
         "project_root": str(project_root)
     }
+
+@app.post("/api/run")
+@app.get("/api/run")
+async def manual_run():
+    """수동으로 자동화 프로세스 실행"""
+    try:
+        # Import the cron handler
+        from pathlib import Path
+        import importlib.util
+        
+        cron_path = Path(__file__).parent / "cron.py"
+        spec = importlib.util.spec_from_file_location("cron", cron_path)
+        cron_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cron_module)
+        
+        # Run the automation
+        results = await cron_module.run_automation_cycle()
+        
+        return {
+            "success": True,
+            "message": "자동화 프로세스가 실행되었습니다",
+            "results": results,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"실행 실패: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }

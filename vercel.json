@@ -5,5 +5,11 @@
       "source": "/(.*)",
       "destination": "/api/index"
     }
+  ],
+  "cron": [
+    {
+      "path": "/api/cron",
+      "schedule": "0 */2 * * *"
+    }
   ]
 }
