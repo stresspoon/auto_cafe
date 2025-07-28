@@ -4,7 +4,7 @@
     "value": "1",
     "domain": ".nid.naver.com",
     "path": "/",
-    "expires": 1784730103,
+    "expires": 1784732880,
     "httpOnly": false,
     "secure": false,
     "sameSite": "Lax"
@@ -34,40 +34,10 @@
     "value": "RRDGLGDYTZ7WQ",
     "domain": ".naver.com",
     "path": "/",
-    "expires": 1787754105.243897,
+    "expires": 1787756881.600648,
     "httpOnly": false,
     "secure": true,
     "sameSite": "None"
-  },
-  {
-    "name": "SRT30",
-    "value": "1753194104",
-    "domain": ".naver.com",
-    "path": "/",
-    "expires": 1753195906.243973,
-    "httpOnly": false,
-    "secure": true,
-    "sameSite": "None"
-  },
-  {
-    "name": "SRT5",
-    "value": "1753194104",
-    "domain": ".naver.com",
-    "path": "/",
-    "expires": 1753194406.244008,
-    "httpOnly": false,
-    "secure": true,
-    "sameSite": "None"
-  },
-  {
-    "name": "NID_JST",
-    "value": "lEpKcV1lBxOQar7FWaOff8HJW7xkzOn+IgDAao3NbD7Rw4Ov73N3BJOwXuYl5bYGbAb7oU/LRkXj0tVWrdjxMUNJBBCippRWvHaRzpuKEveO9c+ncV1Wcn9A/P40uaOvyJGJ2SJsNaPefIFf4O2RKHMzARJh8RDrPJlsBUdSPX8=",
-    "domain": ".nid.naver.com",
-    "path": "/",
-    "expires": 1770474103.982483,
-    "httpOnly": true,
-    "secure": true,
-    "sameSite": "Lax"
   },
   {
     "name": "nid_buk",
@@ -100,11 +70,41 @@
     "sameSite": "Lax"
   },
   {
-    "name": "BUC",
-    "value": "Y8_9yHwaMO9VPg_EPwtTOr38PboFD3-Fax-Pe_MW_uY=",
+    "name": "SRT30",
+    "value": "1753196851",
     "domain": ".naver.com",
     "path": "/",
-    "expires": 1787754105.244029,
+    "expires": 1753198681.600739,
+    "httpOnly": false,
+    "secure": true,
+    "sameSite": "None"
+  },
+  {
+    "name": "SRT5",
+    "value": "1753196851",
+    "domain": ".naver.com",
+    "path": "/",
+    "expires": 1753197181.60079,
+    "httpOnly": false,
+    "secure": true,
+    "sameSite": "None"
+  },
+  {
+    "name": "NID_JST",
+    "value": "97GwFriXLKoUrtKqWDrhk2FzF8Mb+zFj8cxs98IzEBdP0iFIfU4Smcge1oA283g3eUJtIEPJXo2uSNNVfMFjdZ+hlZQWKNFzQWj1LHCeUlMgzG7bloDTzMnBCgv9fRSReR7dKhleY0+4PPe4jZ1vkylR66HoZJ4wVCR78jR7E+s=",
+    "domain": ".nid.naver.com",
+    "path": "/",
+    "expires": 1770476879.939858,
+    "httpOnly": true,
+    "secure": true,
+    "sameSite": "Lax"
+  },
+  {
+    "name": "BUC",
+    "value": "lOUMXf-bToVy9_a_JJiUvlUIpncAsL1z5_dsrJaPwwA=",
+    "domain": ".naver.com",
+    "path": "/",
+    "expires": 1787756881.600819,
     "httpOnly": true,
     "secure": true,
     "sameSite": "None"
